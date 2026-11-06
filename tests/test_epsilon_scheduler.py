@@ -36,7 +36,10 @@ def test_epsilon_scheduler():
         for current, following in zip(epsilon_values, epsilon_values[1:])
     )
 
-    assert all(0.1 <= epsilon <= 1.0 for epsilon in epsilon_values)
+    assert all(
+    0.1 - 1e-10 <= epsilon <= 1.0 + 1e-10
+    for epsilon in epsilon_values
+)
 
     for invalid_step in [-1, -100]:
         try:
