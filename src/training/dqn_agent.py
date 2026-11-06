@@ -1,4 +1,7 @@
 
+import random
+
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -6,7 +9,7 @@ from src.models.dqn import DQN
 
 
 class DQNAgent:
-    """Manage DQN networks and optimize action-value estimates."""
+    """Manage DQN networks, optimization, and epsilon-greedy action selection."""
 
     def __init__(
         self,
@@ -26,6 +29,7 @@ class DQNAgent:
         """
         self.device = device
         self.gamma = gamma
+        self.num_actions = num_actions
 
         self.online_network = DQN(num_actions).to(device)
         self.target_network = DQN(num_actions).to(device)
@@ -84,3 +88,30 @@ class DQNAgent:
         self.optimizer.step()
 
         return loss.item()
+
+    def select_action(self, state: np.ndarray, epsilon: float) -> int:
+        """
+        Select an action using the epsilon-greedy policy.
+
+        Args:
+            state: Current stacked observation with shape (4, 84, 84).
+            epsilon: Probability of selecting a random action.
+
+        Returns:
+            Selected discrete action index.
+        """
+        if not 0.0 <= epsilon <= 1.0:
+            raise ValueError("Epsilon must be between 0 and 1.")
+
+        if random.random() < epsilon:
+            return random.randrange(self.num_actions)
+
+        with torch.no_grad():
+            state_tensor = torch.as_tensor(
+                state, device=self.device
+            ).unsqueeze(0)
+
+            q_values = self.online_network(state_tensor)
+            action = q_values.argmax(dim=1).item()
+
+        return int(action)
