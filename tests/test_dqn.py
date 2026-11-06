@@ -10,7 +10,7 @@ def test_dqn():
 
     Checks Q-value shapes, numerical validity, and device placement.
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     model = DQN(num_actions=3).to(device)
     model.eval()
@@ -24,7 +24,7 @@ def test_dqn():
 
     assert q_values.shape == (8, 3)
     assert torch.isfinite(q_values).all()
-    
+
     print("Expected device:", device)
     print("Model device:", next(model.parameters()).device)
     print("Q-values device:", q_values.device)
