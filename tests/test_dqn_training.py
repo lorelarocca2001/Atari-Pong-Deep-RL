@@ -11,7 +11,7 @@ def test_dqn_training():
     """
     Verify DQN optimization using a sampled replay buffer minibatch.
 
-    Checks finite MSE loss, online network parameter updates,
+    Checks finite Huber loss, online network parameter updates,
     and target network stability.
     """
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -23,7 +23,7 @@ def test_dqn_training():
         gamma=0.99
     )
 
-    assert isinstance(agent.loss_function, nn.MSELoss)
+    assert isinstance(agent.loss_function, nn.SmoothL1Loss)
 
     buffer = ReplayBuffer(capacity=100)
 
@@ -74,7 +74,7 @@ def test_dqn_training():
     )
 
     print("Device:", device)
-    print("Loss function: MSE")
+    print("Loss function: Huber")
     print("TD Loss:", loss)
     print("Online network updated: True")
     print("Target network unchanged: True")
