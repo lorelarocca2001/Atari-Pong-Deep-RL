@@ -24,6 +24,11 @@ def test_dqn():
 
     assert q_values.shape == (8, 3)
     assert torch.isfinite(q_values).all()
+    
+    print("Expected device:", device)
+    print("Model device:", next(model.parameters()).device)
+    print("Q-values device:", q_values.device)
+
     assert q_values.device == device
 
     print("Device:", device)
