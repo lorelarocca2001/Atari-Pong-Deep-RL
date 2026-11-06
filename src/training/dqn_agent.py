@@ -41,7 +41,7 @@ class DQNAgent:
             lr=learning_rate
         )
 
-        self.loss_function = nn.MSELoss()
+        self.loss_function = nn.SmoothL1Loss()
 
     def update_target_network(self) -> None:
         """Copy online network parameters to the target network."""
