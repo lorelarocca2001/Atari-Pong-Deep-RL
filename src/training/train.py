@@ -11,6 +11,7 @@ from src.datasets.replay_buffer import ReplayBuffer
 from src.training.dqn_agent import DQNAgent
 from src.training.epsilon_scheduler import LinearEpsilonScheduler
 from src.utils.pong_environment import PongEnvironment
+from src.utils.wandb_logger import WandbLogger
 
 
 def save_checkpoint(agent: DQNAgent, step: int, directory: Path) -> None:
@@ -35,13 +36,16 @@ def save_checkpoint(agent: DQNAgent, step: int, directory: Path) -> None:
     )
 
 
-def train(total_steps: int = 2000,
-          checkpoint_dir: str = "experiments/checkpoints") -> None:
+def train(
+    total_steps: int = 2000,
+    checkpoint_dir: str = "experiments/checkpoints"
+) -> None:
     """
-    Train a DQN agent on Atari Pong.
+    Train a DQN agent on Atari Pong with W&B experiment tracking.
 
     Args:
         total_steps: Total number of environment interactions.
+        checkpoint_dir: Directory used to save model checkpoints.
     """
     device = torch.device(
         "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -53,14 +57,34 @@ def train(total_steps: int = 2000,
     train_frequency = 4
     target_update_frequency = 1000
     checkpoint_frequency = 1000
+    log_frequency = 200
+    learning_rate = 1e-4
+    gamma = 0.99
+
+    config = {
+        "algorithm": "DQN",
+        "environment": "ALE/Pong-v5",
+        "total_steps": total_steps,
+        "batch_size": batch_size,
+        "buffer_capacity": buffer_capacity,
+        "warmup_steps": warmup_steps,
+        "train_frequency": train_frequency,
+        "target_update_frequency": target_update_frequency,
+        "learning_rate": learning_rate,
+        "gamma": gamma,
+        "loss": "Huber",
+        "epsilon_start": 1.0,
+        "epsilon_end": 0.1,
+        "epsilon_decay_steps": 1_000_000
+    }
 
     env = PongEnvironment(num_frames=4)
 
     agent = DQNAgent(
         num_actions=env.num_actions,
         device=device,
-        learning_rate=1e-4,
-        gamma=0.99
+        learning_rate=learning_rate,
+        gamma=gamma
     )
 
     buffer = ReplayBuffer(capacity=buffer_capacity)
@@ -70,6 +94,8 @@ def train(total_steps: int = 2000,
         epsilon_end=0.1,
         decay_steps=1_000_000
     )
+
+    logger = None
 
     checkpoint_dir = Path(checkpoint_dir)
     log_dir = Path("experiments/logs")
@@ -82,11 +108,17 @@ def train(total_steps: int = 2000,
 
     state = env.reset()
 
-    print("Device:", device)
-    print("Total steps:", total_steps)
-    print("Training started!")
-
     try:
+        logger = WandbLogger(
+            project="Atari-Pong-Deep-RL",
+            run_name=f"dqn_{total_steps}_steps",
+            config=config
+        )
+
+        print("Device:", device)
+        print("Total steps:", total_steps)
+        print("Training started!")
+
         with (log_dir / "training_metrics.csv").open(
             "w", newline=""
         ) as log_file:
@@ -98,7 +130,6 @@ def train(total_steps: int = 2000,
 
             for step in range(1, total_steps + 1):
                 epsilon = scheduler.get_epsilon(step - 1)
-
                 action = agent.select_action(state, epsilon)
 
                 next_state, reward, terminated, truncated, _ = env.step(
@@ -113,11 +144,19 @@ def train(total_steps: int = 2000,
 
                 episode_reward += reward
 
+                metrics = {}
+
                 if done:
                     episode_count += 1
                     episode_rewards.append(episode_reward)
 
                     average_reward = float(np.mean(episode_rewards))
+
+                    metrics.update({
+                        "episode/reward": episode_reward,
+                        "episode/average_reward_100": average_reward,
+                        "episode/count": episode_count
+                    })
 
                     writer.writerow(
                         [
@@ -157,13 +196,35 @@ def train(total_steps: int = 2000,
                 if step % checkpoint_frequency == 0:
                     save_checkpoint(agent, step, checkpoint_dir)
 
-                if step % 200 == 0:
+                if step % log_frequency == 0:
+                    metrics.update({
+                        "train/epsilon": epsilon,
+                        "train/replay_buffer_size": len(buffer)
+                    })
+
+                    if np.isfinite(last_loss):
+                        metrics["train/td_loss"] = last_loss
+
+                    with torch.no_grad():
+                        state_tensor = torch.as_tensor(
+                            state, device=device
+                        ).unsqueeze(0)
+
+                        q_values = agent.online_network(state_tensor)
+
+                        metrics["train/mean_q_value"] = (
+                            q_values.mean().item()
+                        )
+
                     print(
                         f"Step {step}/{total_steps} | "
                         f"Buffer {len(buffer)} | "
                         f"Loss {last_loss:.5f} | "
                         f"Epsilon {epsilon:.4f}"
                     )
+
+                if metrics:
+                    logger.log(metrics, step=step)
 
         save_checkpoint(agent, total_steps, checkpoint_dir)
 
@@ -173,6 +234,8 @@ def train(total_steps: int = 2000,
     finally:
         env.close()
 
+        if logger is not None:
+            logger.finish()
 
 
 if __name__ == "__main__":
@@ -196,4 +259,5 @@ if __name__ == "__main__":
         total_steps=args.steps,
         checkpoint_dir=args.checkpoint_dir
     )
+
 
