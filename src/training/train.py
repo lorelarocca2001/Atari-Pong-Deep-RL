@@ -8,6 +8,7 @@ import numpy as np
 import torch
 
 from src.datasets.replay_buffer import ReplayBuffer
+from src.evaluation.evaluate import evaluate_agent
 from src.training.dqn_agent import DQNAgent
 from src.training.epsilon_scheduler import LinearEpsilonScheduler
 from src.utils.pong_environment import PongEnvironment
@@ -41,7 +42,7 @@ def train(
     checkpoint_dir: str = "experiments/checkpoints"
 ) -> None:
     """
-    Train a DQN agent on Atari Pong with W&B experiment tracking.
+    Train a DQN agent on Atari Pong with W&B tracking and periodic evaluation.
 
     Args:
         total_steps: Total number of environment interactions.
@@ -58,6 +59,9 @@ def train(
     target_update_frequency = 1000
     checkpoint_frequency = 1000
     log_frequency = 200
+    evaluation_frequency = 50_000
+    evaluation_episodes = 5
+    evaluation_epsilon = 0.01
     learning_rate = 1e-4
     gamma = 0.99
 
@@ -75,7 +79,10 @@ def train(
         "loss": "Huber",
         "epsilon_start": 1.0,
         "epsilon_end": 0.1,
-        "epsilon_decay_steps": 1_000_000
+        "epsilon_decay_steps": 1_000_000,
+        "evaluation_frequency": evaluation_frequency,
+        "evaluation_episodes": evaluation_episodes,
+        "evaluation_epsilon": evaluation_epsilon
     }
 
     env = PongEnvironment(num_frames=4)
@@ -223,6 +230,24 @@ def train(
                         f"Epsilon {epsilon:.4f}"
                     )
 
+                if step % evaluation_frequency == 0:
+                    results = evaluate_agent(
+                        agent=agent,
+                        num_episodes=evaluation_episodes,
+                        epsilon=evaluation_epsilon
+                    )
+
+                    metrics.update({
+                        "evaluation/mean_reward": results["mean_reward"],
+                        "evaluation/std_reward": results["std_reward"]
+                    })
+
+                    print(
+                        f"Evaluation at step {step} | "
+                        f"Mean Reward {results['mean_reward']:.2f} | "
+                        f"Std {results['std_reward']:.2f}"
+                    )
+
                 if metrics:
                     logger.log(metrics, step=step)
 
@@ -259,5 +284,3 @@ if __name__ == "__main__":
         total_steps=args.steps,
         checkpoint_dir=args.checkpoint_dir
     )
-
-
