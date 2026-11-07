@@ -13,6 +13,7 @@ from src.training.dqn_agent import DQNAgent
 from src.training.epsilon_scheduler import LinearEpsilonScheduler
 from src.utils.pong_environment import PongEnvironment
 from src.utils.wandb_logger import WandbLogger
+from src.utils.config import load_config
 
 
 def save_checkpoint(agent: DQNAgent, step: int, directory: Path) -> None:
@@ -38,10 +39,7 @@ def save_checkpoint(agent: DQNAgent, step: int, directory: Path) -> None:
 
 
 def train(
-    total_steps: int = 2000,
-    checkpoint_dir: str = "experiments/checkpoints",
-    log_dir: str = "experiments/logs",
-    evaluation_frequency: int = 50_000
+    config_path: str = "experiments/configs/dqn.yaml"
 ) -> None:
     """
     Train a DQN agent on Atari Pong with W&B tracking and periodic evaluation.
@@ -52,41 +50,46 @@ def train(
         log_dir: Directory used to store training logs.
         evaluation_frequency: Number of environment steps between evaluations.
     """
+    
+    config = load_config(config_path)
+
+    training_config = config["training"]
+    replay_config = config["replay_buffer"]
+    target_config = config["target_network"]
+    optimization_config = config["optimization"]
+    exploration_config = config["exploration"]
+    evaluation_config = config["evaluation"]
+    logging_config = config["logging"]
+    checkpoint_config = config["checkpoint"]
+
+    total_steps = training_config["total_steps"]
+    batch_size = training_config["batch_size"]
+    learning_rate = training_config["learning_rate"]
+    gamma = training_config["gamma"]
+
+    buffer_capacity = replay_config["capacity"]
+    warmup_steps = replay_config["warmup_steps"]
+
+    train_frequency = optimization_config["train_frequency"]
+    target_update_frequency = target_config["update_frequency"]
+
+    epsilon_start = exploration_config["epsilon_start"]
+    epsilon_end = exploration_config["epsilon_end"]
+    epsilon_decay_steps = exploration_config["epsilon_decay_steps"]
+
+    evaluation_frequency = evaluation_config["frequency"]
+    evaluation_episodes = evaluation_config["episodes"]
+    evaluation_epsilon = evaluation_config["epsilon"]
+
+    log_frequency = logging_config["frequency"]
+    log_dir = logging_config["log_dir"]
+    checkpoint_frequency = checkpoint_config["frequency"]
+    checkpoint_dir = checkpoint_config["directory"]
+
+
     device = torch.device(
         "cuda:0" if torch.cuda.is_available() else "cpu"
     )
-
-    batch_size = 32
-    buffer_capacity = 5000
-    warmup_steps = 1000
-    train_frequency = 4
-    target_update_frequency = 1000
-    checkpoint_frequency = 1000
-    log_frequency = 200
-    evaluation_episodes = 5
-    evaluation_epsilon = 0.01
-    learning_rate = 1e-4
-    gamma = 0.99
-
-    config = {
-        "algorithm": "DQN",
-        "environment": "ALE/Pong-v5",
-        "total_steps": total_steps,
-        "batch_size": batch_size,
-        "buffer_capacity": buffer_capacity,
-        "warmup_steps": warmup_steps,
-        "train_frequency": train_frequency,
-        "target_update_frequency": target_update_frequency,
-        "learning_rate": learning_rate,
-        "gamma": gamma,
-        "loss": "Huber",
-        "epsilon_start": 1.0,
-        "epsilon_end": 0.1,
-        "epsilon_decay_steps": 1_000_000,
-        "evaluation_frequency": evaluation_frequency,
-        "evaluation_episodes": evaluation_episodes,
-        "evaluation_epsilon": evaluation_epsilon
-    }
 
     env = PongEnvironment(num_frames=4)
 
@@ -100,9 +103,9 @@ def train(
     buffer = ReplayBuffer(capacity=buffer_capacity)
 
     scheduler = LinearEpsilonScheduler(
-        epsilon_start=1.0,
-        epsilon_end=0.1,
-        decay_steps=1_000_000
+        epsilon_start=epsilon_start,
+        epsilon_end=epsilon_end,
+        decay_steps=epsilon_decay_steps
     )
 
     logger = None
@@ -267,38 +270,17 @@ def train(
             logger.finish()
 
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--steps",
-        type=int,
-        default=2000
-    )
-
-    parser.add_argument(
-        "--checkpoint-dir",
+        "--config",
         type=str,
-        default="experiments/checkpoints"
-    )
-
-    parser.add_argument(
-        "--evaluation-frequency",
-        type=int,
-        default=50_000
-    )
-
-    parser.add_argument(
-        "--log-dir",
-        type=str,
-        default="experiments/logs"
+        default="experiments/configs/dqn.yaml"
     )
 
     args = parser.parse_args()
 
-    train(
-        total_steps=args.steps,
-        checkpoint_dir=args.checkpoint_dir,
-        evaluation_frequency=args.evaluation_frequency,
-        log_dir=args.log_dir
-    )
+    train(config_path=args.config)
+
