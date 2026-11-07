@@ -2,6 +2,7 @@
 import gymnasium as gym
 import ale_py
 import numpy as np
+import torch
 
 from src.utils.preprocessing import preprocess_frame
 from src.utils.frame_stack import FrameStack
@@ -62,6 +63,58 @@ class PongEnvironment:
 
         return next_state, reward, terminated, truncated, info
 
+    def state_dict(self) -> dict:
+        """
+        Serialize the Atari emulator and frame stack states.
+
+        Returns:
+            Dictionary containing the serialized ALE state and frame stack.
+        """
+        ale_state = self.env.unwrapped.ale.cloneSystemState()
+        serialized_state = ale_state.serialize()
+
+        frame_stack_state = self.frame_stack.state_dict()
+
+        return {
+            "ale_state": torch.tensor(
+                list(serialized_state),
+                dtype=torch.uint8
+            ),
+            "frame_stack": {
+                "num_frames": frame_stack_state["num_frames"],
+                "frames": [
+                    torch.from_numpy(frame.copy())
+                    for frame in frame_stack_state["frames"]
+                ]
+            }
+        }
+
+    def load_state_dict(self, state_dict: dict) -> None:
+        """
+        Restore the Atari emulator and frame stack states.
+
+        Args:
+            state_dict: Previously serialized environment state.
+        """
+        serialized_state = bytes(
+            state_dict["ale_state"].cpu().tolist()
+        )
+
+        ale_state = ale_py.ALEState(serialized_state)
+
+        self.env.unwrapped.ale.restoreSystemState(ale_state)
+
+        frame_stack_state = state_dict["frame_stack"]
+
+        self.frame_stack.load_state_dict({
+            "num_frames": frame_stack_state["num_frames"],
+            "frames": [
+                frame.cpu().numpy().copy()
+                for frame in frame_stack_state["frames"]
+            ]
+        })
+
     def close(self) -> None:
         """Release the Atari environment resources."""
         self.env.close()
+
