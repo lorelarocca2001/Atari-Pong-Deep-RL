@@ -76,3 +76,57 @@ class ReplayBuffer:
     def __len__(self) -> int:
         """Return the current number of stored transitions."""
         return len(self.buffer)
+
+    
+    def state_dict(self) -> dict:
+        """
+        Serialize the replay buffer for checkpointing.
+
+        Returns:
+            Dictionary containing capacity and stored transitions.
+        """
+        transitions = [
+            (
+                torch.from_numpy(t.state.copy()),
+                t.action,
+                t.reward,
+                torch.from_numpy(t.next_state.copy()),
+                t.done
+            )
+            for t in self.buffer
+        ]
+
+        return {
+            "capacity": self.buffer.maxlen,
+            "transitions": transitions
+        }
+
+    def load_state_dict(self, state_dict: dict) -> None:
+        """
+        Restore transitions from a serialized replay buffer.
+
+        Args:
+            state_dict: Previously saved replay buffer state.
+        """
+        capacity = state_dict["capacity"]
+        transitions = state_dict["transitions"]
+
+        if capacity <= 0:
+            raise ValueError("Replay buffer capacity must be positive.")
+
+        if len(transitions) > capacity:
+            raise ValueError("Saved transitions exceed buffer capacity.")
+
+        self.buffer = deque(maxlen=capacity)
+
+        for state, action, reward, next_state, done in transitions:
+            self.buffer.append(
+                Transition(
+                    state.cpu().numpy().copy(),
+                    int(action),
+                    float(reward),
+                    next_state.cpu().numpy().copy(),
+                    bool(done)
+                )
+            )
+
