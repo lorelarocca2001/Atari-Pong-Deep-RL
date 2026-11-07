@@ -1,4 +1,6 @@
 
+from pathlib import Path
+
 import wandb
 
 
@@ -9,7 +11,8 @@ class WandbLogger:
         self,
         project: str,
         run_name: str,
-        config: dict
+        config: dict,
+        log_dir: str = "experiments/logs"
     ):
         """
         Initialize a W&B experiment.
@@ -18,11 +21,16 @@ class WandbLogger:
             project: W&B project name.
             run_name: Name of the training run.
             config: Dictionary of training hyperparameters.
+            log_dir: Directory used to store local W&B files.
         """
+        log_path = Path(log_dir).resolve()
+        log_path.mkdir(parents=True, exist_ok=True)
+
         self.run = wandb.init(
             project=project,
             name=run_name,
-            config=config
+            config=config,
+            dir=str(log_path)
         )
 
         self.run.define_metric("global_step")
@@ -44,3 +52,4 @@ class WandbLogger:
     def finish(self) -> None:
         """Finish the W&B experiment and synchronize logged metrics."""
         self.run.finish()
+
