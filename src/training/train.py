@@ -3,7 +3,7 @@ import argparse
 import csv
 from collections import deque
 from pathlib import Path
-from datetime import Time
+from datetime import datetime
 
 import numpy as np
 import torch
