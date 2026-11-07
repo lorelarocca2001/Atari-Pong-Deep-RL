@@ -31,9 +31,9 @@ evaluation:
 
 logging:
   frequency: 200
-  log_dir: experiments/logs
+  log_dir: /content/drive/MyDrive/Atari-Pong-Deep-RL/logs/wandb
   wandb_project: Atari-Pong-Deep-RL
 
 checkpoint:
   frequency: 50000
-  directory: experiments/checkpoints
+  directory: /content/drive/MyDrive/Atari-Pong-Deep-RL/checkpoints
