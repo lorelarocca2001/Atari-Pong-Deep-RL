@@ -46,10 +46,7 @@ def train(
     Train a DQN agent on Atari Pong with W&B tracking and periodic evaluation.
 
     Args:
-        total_steps: Total number of environment interactions.
-        checkpoint_dir: Directory used to save model checkpoints.
-        log_dir: Directory used to store training logs.
-        evaluation_frequency: Number of environment steps between evaluations.
+        config_path: Path to the experiment configuration file.
     """
     
     config = load_config(config_path)
