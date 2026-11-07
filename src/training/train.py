@@ -39,7 +39,8 @@ def save_checkpoint(agent: DQNAgent, step: int, directory: Path) -> None:
 
 def train(
     total_steps: int = 2000,
-    checkpoint_dir: str = "experiments/checkpoints"
+    checkpoint_dir: str = "experiments/checkpoints",
+    evaluation_frequency: int = 50_000
 ) -> None:
     """
     Train a DQN agent on Atari Pong with W&B tracking and periodic evaluation.
@@ -47,6 +48,7 @@ def train(
     Args:
         total_steps: Total number of environment interactions.
         checkpoint_dir: Directory used to save model checkpoints.
+        evaluation_frequency: Number of environment steps between evaluations.
     """
     device = torch.device(
         "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -59,7 +61,6 @@ def train(
     target_update_frequency = 1000
     checkpoint_frequency = 1000
     log_frequency = 200
-    evaluation_frequency = 50_000
     evaluation_episodes = 5
     evaluation_epsilon = 0.01
     learning_rate = 1e-4
@@ -278,9 +279,16 @@ if __name__ == "__main__":
         default="experiments/checkpoints"
     )
 
+    parser.add_argument(
+        "--evaluation-frequency",
+        type=int,
+        default=50_000
+    )
+
     args = parser.parse_args()
 
     train(
         total_steps=args.steps,
-        checkpoint_dir=args.checkpoint_dir
+        checkpoint_dir=args.checkpoint_dir,
+        evaluation_frequency=args.evaluation_frequency
     )
