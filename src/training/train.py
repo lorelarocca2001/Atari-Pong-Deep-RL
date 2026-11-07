@@ -40,6 +40,7 @@ def save_checkpoint(agent: DQNAgent, step: int, directory: Path) -> None:
 def train(
     total_steps: int = 2000,
     checkpoint_dir: str = "experiments/checkpoints",
+    log_dir: str = "experiments/logs",
     evaluation_frequency: int = 50_000
 ) -> None:
     """
@@ -48,6 +49,7 @@ def train(
     Args:
         total_steps: Total number of environment interactions.
         checkpoint_dir: Directory used to save model checkpoints.
+        log_dir: Directory used to store training logs.
         evaluation_frequency: Number of environment steps between evaluations.
     """
     device = torch.device(
@@ -106,7 +108,7 @@ def train(
     logger = None
 
     checkpoint_dir = Path(checkpoint_dir)
-    log_dir = Path("experiments/logs")
+    log_dir = Path(log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
 
     episode_rewards = deque(maxlen=100)
@@ -120,7 +122,8 @@ def train(
         logger = WandbLogger(
             project="Atari-Pong-Deep-RL",
             run_name=f"dqn_{total_steps}_steps",
-            config=config
+            config=config,
+            log_dir=str(log_dir)
         )
 
         print("Device:", device)
@@ -285,10 +288,17 @@ if __name__ == "__main__":
         default=50_000
     )
 
+    parser.add_argument(
+        "--log-dir",
+        type=str,
+        default="experiments/logs"
+    )
+
     args = parser.parse_args()
 
     train(
         total_steps=args.steps,
         checkpoint_dir=args.checkpoint_dir,
-        evaluation_frequency=args.evaluation_frequency
+        evaluation_frequency=args.evaluation_frequency,
+        log_dir=args.log_dir
     )
