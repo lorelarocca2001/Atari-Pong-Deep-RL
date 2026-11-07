@@ -55,3 +55,41 @@ class FrameStack:
             Array with shape (num_frames, 84, 84) and dtype uint8.
         """
         return np.stack(self.frames, axis=0)
+
+    
+    def state_dict(self) -> dict:
+        """
+        Serialize the frame stack for checkpointing.
+
+        Returns:
+            Dictionary containing the number of frames and stored observations.
+        """
+        return {
+            "num_frames": self.num_frames,
+            "frames": [frame.copy() for frame in self.frames]
+        }
+
+    def load_state_dict(self, state_dict: dict) -> None:
+        """
+        Restore a previously saved frame stack.
+
+        Args:
+            state_dict: Serialized frame stack state.
+        """
+        num_frames = state_dict["num_frames"]
+        frames = state_dict["frames"]
+
+        if num_frames != self.num_frames:
+            raise ValueError("Frame stack size mismatch.")
+
+        if len(frames) != num_frames:
+            raise ValueError("Invalid number of saved frames.")
+
+        self.frames.clear()
+
+        for frame in frames:
+            if frame.shape != (84, 84) or frame.dtype != np.uint8:
+                raise ValueError("Invalid saved frame format.")
+
+            self.frames.append(frame.copy())
+
