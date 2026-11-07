@@ -3,6 +3,7 @@ import argparse
 import csv
 from collections import deque
 from pathlib import Path
+from datetime import Time
 
 import numpy as np
 import torch
@@ -53,6 +54,10 @@ def train(
     
     config = load_config(config_path)
 
+    experiment_name = Path(config_path).stem
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_name = f"{timestamp}_{experiment_name}"
+
     training_config = config["training"]
     replay_config = config["replay_buffer"]
     target_config = config["target_network"]
@@ -82,10 +87,9 @@ def train(
     evaluation_epsilon = evaluation_config["epsilon"]
 
     log_frequency = logging_config["frequency"]
-    log_dir = logging_config["log_dir"]
+    log_dir = Path(logging_config["directory"]) / run_name
     checkpoint_frequency = checkpoint_config["frequency"]
-    checkpoint_dir = checkpoint_config["directory"]
-
+    checkpoint_dir = Path(checkpoint_config["directory"]) / run_name
 
     device = torch.device(
         "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -110,8 +114,7 @@ def train(
 
     logger = None
 
-    checkpoint_dir = Path(checkpoint_dir)
-    log_dir = Path(log_dir)
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
 
     episode_rewards = deque(maxlen=100)
@@ -123,8 +126,8 @@ def train(
 
     try:
         logger = WandbLogger(
-            project="Atari-Pong-Deep-RL",
-            run_name=f"dqn_{total_steps}_steps",
+            project=logging_config["wandb_project"],
+            run_name=run_name,
             config=config,
             log_dir=str(log_dir)
         )
