@@ -2,8 +2,8 @@
 import argparse
 import csv
 from collections import deque
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -12,43 +12,151 @@ from src.datasets.replay_buffer import ReplayBuffer
 from src.evaluation.evaluate import evaluate_agent
 from src.training.dqn_agent import DQNAgent
 from src.training.epsilon_scheduler import LinearEpsilonScheduler
-from src.utils.pong_environment import PongEnvironment
-from src.utils.wandb_logger import WandbLogger
 from src.utils.config import load_config
+from src.utils.pong_environment import PongEnvironment
+from src.utils.random_state import get_random_state, set_random_state
+from src.utils.wandb_logger import WandbLogger
 
 
-def save_checkpoint(agent: DQNAgent, step: int, directory: Path) -> None:
+def save_checkpoint(
+    agent: DQNAgent,
+    buffer: ReplayBuffer,
+    env: PongEnvironment,
+    step: int,
+    directory: Path,
+    state: np.ndarray,
+    episode_reward: float,
+    episode_count: int,
+    episode_rewards: deque,
+    last_loss: float
+) -> None:
     """
-    Save DQN network weights and optimizer state.
+    Save the complete DQN training state for resuming training.
 
     Args:
-        agent: DQN agent to save.
+        agent: DQN agent containing networks and optimizer.
+        buffer: Experience replay buffer.
+        env: Atari Pong environment.
         step: Current environment step.
         directory: Destination directory.
+        state: Current stacked observation.
+        episode_reward: Accumulated reward of the current episode.
+        episode_count: Number of completed episodes.
+        episode_rewards: Rewards from the latest 100 episodes.
+        last_loss: Most recent training loss.
     """
     directory.mkdir(parents=True, exist_ok=True)
 
-    torch.save(
-        {
-            "step": step,
-            "online_network": agent.online_network.state_dict(),
-            "target_network": agent.target_network.state_dict(),
-            "optimizer": agent.optimizer.state_dict()
-        },
-        directory / f"dqn_step_{step}.pth"
+    checkpoint = {
+        "step": step,
+        "online_network": agent.online_network.state_dict(),
+        "target_network": agent.target_network.state_dict(),
+        "optimizer": agent.optimizer.state_dict(),
+        "replay_buffer": buffer.state_dict(),
+        "environment": env.state_dict(),
+        "random_state": get_random_state(),
+        "training_state": {
+            "state": torch.from_numpy(state.copy()),
+            "episode_reward": episode_reward,
+            "episode_count": episode_count,
+            "episode_rewards": list(episode_rewards),
+            "last_loss": last_loss
+        }
+    }
+
+    checkpoint_path = directory / f"dqn_step_{step}.pth"
+    temporary_path = directory / f"dqn_step_{step}.pth.tmp"
+
+    torch.save(checkpoint, temporary_path)
+    temporary_path.replace(checkpoint_path)
+
+    print(f"Checkpoint saved: {checkpoint_path}")
+
+
+def load_checkpoint(
+    agent: DQNAgent,
+    buffer: ReplayBuffer,
+    env: PongEnvironment,
+    checkpoint_path: str,
+    device: torch.device
+) -> dict:
+    """
+    Restore the complete DQN training state from a checkpoint.
+
+    Args:
+        agent: DQN agent receiving the saved network and optimizer states.
+        buffer: Replay buffer receiving the saved transitions.
+        env: Pong environment receiving the saved emulator state.
+        checkpoint_path: Path to the checkpoint file.
+        device: Device used for neural network computations.
+
+    Returns:
+        Dictionary containing the restored training progress.
+    """
+    checkpoint = torch.load(
+        checkpoint_path,
+        map_location="cpu",
+        weights_only=True
     )
+
+    agent.online_network.load_state_dict(
+        checkpoint["online_network"]
+    )
+
+    agent.target_network.load_state_dict(
+        checkpoint["target_network"]
+    )
+
+    agent.optimizer.load_state_dict(
+        checkpoint["optimizer"]
+    )
+
+    agent.online_network.to(device)
+    agent.target_network.to(device)
+    agent.target_network.eval()
+
+    buffer.load_state_dict(
+        checkpoint["replay_buffer"]
+    )
+
+    env.load_state_dict(
+        checkpoint["environment"]
+    )
+
+    training_state = checkpoint["training_state"]
+
+    restored_state = {
+        "step": int(checkpoint["step"]),
+        "state": training_state["state"].cpu().numpy().copy(),
+        "episode_reward": float(training_state["episode_reward"]),
+        "episode_count": int(training_state["episode_count"]),
+        "episode_rewards": deque(
+            training_state["episode_rewards"],
+            maxlen=100
+        ),
+        "last_loss": float(training_state["last_loss"])
+    }
+
+    set_random_state(checkpoint["random_state"])
+
+    print(f"Checkpoint loaded: {checkpoint_path}")
+    print(f"Restored step: {restored_state['step']}")
+    print(f"Restored transitions: {len(buffer)}")
+    print(f"Restored episodes: {restored_state['episode_count']}")
+
+    return restored_state
 
 
 def train(
     config_path: str = "experiments/configs/dqn.yaml"
 ) -> None:
     """
-    Train a DQN agent on Atari Pong with W&B tracking and periodic evaluation.
+    Train a DQN agent using a YAML configuration, W&B tracking,
+    periodic evaluation, and complete training checkpoints.
 
     Args:
         config_path: Path to the experiment configuration file.
     """
-    
     config = load_config(config_path)
 
     experiment_name = Path(config_path).stem
@@ -85,6 +193,7 @@ def train(
 
     log_frequency = logging_config["frequency"]
     log_dir = Path(logging_config["directory"]) / run_name
+
     checkpoint_frequency = checkpoint_config["frequency"]
     checkpoint_dir = Path(checkpoint_config["directory"]) / run_name
 
@@ -129,12 +238,16 @@ def train(
             log_dir=str(log_dir)
         )
 
+        print("Experiment:", run_name)
         print("Device:", device)
         print("Total steps:", total_steps)
+        print("Checkpoint directory:", checkpoint_dir)
+        print("Log directory:", log_dir)
         print("Training started!")
 
         with (log_dir / "training_metrics.csv").open(
-            "w", newline=""
+            "w",
+            newline=""
         ) as log_file:
             writer = csv.writer(log_file)
 
@@ -153,7 +266,11 @@ def train(
                 done = terminated or truncated
 
                 buffer.push(
-                    state, action, reward, next_state, done
+                    state,
+                    action,
+                    reward,
+                    next_state,
+                    done
                 )
 
                 episode_reward += reward
@@ -181,6 +298,7 @@ def train(
                             epsilon
                         ]
                     )
+
                     log_file.flush()
 
                     print(
@@ -207,9 +325,6 @@ def train(
                 if step % target_update_frequency == 0:
                     agent.update_target_network()
 
-                if step % checkpoint_frequency == 0:
-                    save_checkpoint(agent, step, checkpoint_dir)
-
                 if step % log_frequency == 0:
                     metrics.update({
                         "train/epsilon": epsilon,
@@ -221,7 +336,8 @@ def train(
 
                     with torch.no_grad():
                         state_tensor = torch.as_tensor(
-                            state, device=device
+                            state,
+                            device=device
                         ).unsqueeze(0)
 
                         q_values = agent.online_network(state_tensor)
@@ -258,7 +374,35 @@ def train(
                 if metrics:
                     logger.log(metrics, step=step)
 
-        save_checkpoint(agent, total_steps, checkpoint_dir)
+                if step % checkpoint_frequency == 0:
+                    log_file.flush()
+
+                    save_checkpoint(
+                        agent=agent,
+                        buffer=buffer,
+                        env=env,
+                        step=step,
+                        directory=checkpoint_dir,
+                        state=state,
+                        episode_reward=episode_reward,
+                        episode_count=episode_count,
+                        episode_rewards=episode_rewards,
+                        last_loss=last_loss
+                    )
+
+        if total_steps % checkpoint_frequency != 0:
+            save_checkpoint(
+                agent=agent,
+                buffer=buffer,
+                env=env,
+                step=total_steps,
+                directory=checkpoint_dir,
+                state=state,
+                episode_reward=episode_reward,
+                episode_count=episode_count,
+                episode_rewards=episode_rewards,
+                last_loss=last_loss
+            )
 
         print("Training completed!")
         print("Episodes completed:", episode_count)
@@ -268,7 +412,6 @@ def train(
 
         if logger is not None:
             logger.finish()
-
 
 
 if __name__ == "__main__":
@@ -283,4 +426,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     train(config_path=args.config)
+
 
