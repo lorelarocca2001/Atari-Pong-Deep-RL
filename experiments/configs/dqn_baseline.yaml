@@ -11,8 +11,8 @@ training:
   loss: Huber
 
 replay_buffer:
-  capacity: 20000
-  warmup_steps: 10000
+  capacity: 100000
+  warmup_steps: 20000
 
 target_network:
   update_frequency: 10000
