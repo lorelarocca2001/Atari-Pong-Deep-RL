@@ -3,7 +3,7 @@ algorithm: DQN
 environment: ALE/Pong-v5
 
 training:
-  total_steps: 600
+  total_steps: 4000
   batch_size: 8
   learning_rate: 0.0001
   gamma: 0.99
