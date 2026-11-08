@@ -1,0 +1,39 @@
+
+algorithm: DQN
+environment: ALE/Pong-v5
+
+training:
+  total_steps: 300
+  batch_size: 8
+  learning_rate: 0.0001
+  gamma: 0.99
+  loss: Huber
+
+replay_buffer:
+  capacity: 50
+  warmup_steps: 16
+
+target_network:
+  update_frequency: 100
+
+optimization:
+  train_frequency: 4
+
+exploration:
+  epsilon_start: 1.0
+  epsilon_end: 0.1
+  epsilon_decay_steps: 1000
+
+evaluation:
+  frequency: 10000
+  episodes: 2
+  epsilon: 0.01
+
+logging:
+  frequency: 100
+  directory: /content/drive/MyDrive/Atari-Pong-Deep-RL/experiments/logs
+  wandb_project: Atari-Pong-Deep-RL
+
+checkpoint:
+  frequency: 300
+  directory: /content/drive/MyDrive/Atari-Pong-Deep-RL/experiments/checkpoints
