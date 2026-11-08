@@ -1,10 +1,10 @@
 
+
 import torch
 import torch.nn as nn
 
 
 class DQN(nn.Module):
-    
     """Convolutional Deep Q-Network for Atari Pong."""
 
     def __init__(self, num_actions: int = 3):
@@ -22,7 +22,7 @@ class DQN(nn.Module):
             nn.Conv2d(32, 64, kernel_size=4, stride=2),
             nn.ReLU(),
             nn.Conv2d(64, 64, kernel_size=3, stride=1),
-            nn.ReLU()
+            nn.LeakyReLU(negative_slope=0.01)
         )
 
         self.classifier = nn.Sequential(
@@ -45,3 +45,4 @@ class DQN(nn.Module):
         x = x.float() / 255.0
         x = self.features(x)
         return self.classifier(x)
+
