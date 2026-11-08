@@ -84,6 +84,13 @@ def test_training_checkpoint() -> None:
                 last_loss=last_loss
             )
 
+            saved_ale_state = (
+                original_env.env.unwrapped.ale
+                .cloneSystemState()
+                .serialize())
+
+            saved_frame_stack = original_env.frame_stack.get_state().copy()
+
             checkpoint_path = checkpoint_dir / "dqn_step_1000.pth"
 
             assert checkpoint_path.is_file()
@@ -123,6 +130,21 @@ def test_training_checkpoint() -> None:
                 checkpoint_path=str(checkpoint_path),
                 device=device
             )
+
+            restored_ale_state = (
+                restored_env.env.unwrapped.ale
+                .cloneSystemState()
+                .serialize())
+
+            restored_frame_stack = restored_env.frame_stack.get_state()
+            print("ALE state identical:",
+                  saved_ale_state == restored_ale_state)
+            print(
+                 "FrameStack identical:",
+                np.array_equal(saved_frame_stack, restored_frame_stack))
+            print(
+                "Current observation identical:",
+                np.array_equal(original_state, restored["state"]))
 
             assert restored["step"] == step
             assert restored["episode_count"] == episode_count
