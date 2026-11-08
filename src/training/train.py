@@ -1,4 +1,3 @@
-
 import argparse
 import csv
 from collections import deque
@@ -148,20 +147,37 @@ def load_checkpoint(
 
 
 def train(
-    config_path: str = "experiments/configs/dqn.yaml"
+    config_path: str = "experiments/configs/dqn.yaml",
+    resume_from: str | None = None
 ) -> None:
     """
-    Train a DQN agent using a YAML configuration, W&B tracking,
-    periodic evaluation, and complete training checkpoints.
+    Train a DQN agent or resume training from a complete checkpoint.
 
     Args:
         config_path: Path to the experiment configuration file.
+        resume_from: Optional path to a complete training checkpoint.
     """
     config = load_config(config_path)
 
     experiment_name = Path(config_path).stem
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_name = f"{timestamp}_{experiment_name}"
+
+    if resume_from is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        run_name = f"{timestamp}_{experiment_name}"
+    else:
+        checkpoint_path = Path(resume_from).resolve()
+
+        if not checkpoint_path.is_file():
+            raise FileNotFoundError(
+                f"Checkpoint not found: {checkpoint_path}"
+            )
+
+        run_name = checkpoint_path.parent.name
+
+        if not run_name.endswith(f"_{experiment_name}"):
+            raise ValueError(
+                "Checkpoint experiment name does not match YAML configuration."
+            )
 
     training_config = config["training"]
     replay_config = config["replay_buffer"]
@@ -227,15 +243,62 @@ def train(
     episode_reward = 0.0
     episode_count = 0
     last_loss = float("nan")
+    start_step = 0
 
     state = env.reset()
 
     try:
+        if resume_from is not None:
+            restored = load_checkpoint(
+                agent=agent,
+                buffer=buffer,
+                env=env,
+                checkpoint_path=str(checkpoint_path),
+                device=device
+            )
+
+            start_step = restored["step"]
+            state = restored["state"]
+            episode_reward = restored["episode_reward"]
+            episode_count = restored["episode_count"]
+            episode_rewards = restored["episode_rewards"]
+            last_loss = restored["last_loss"]
+
+            if start_step >= total_steps:
+                raise ValueError(
+                    "Checkpoint step must be lower than total_steps."
+                )
+
+        metrics_path = log_dir / "training_metrics.csv"
+
+        if resume_from is not None:
+            if not metrics_path.is_file():
+                raise FileNotFoundError(
+                    f"Training metrics file not found: {metrics_path}"
+                )
+
+            with metrics_path.open("r", newline="") as existing_file:
+                rows = csv.DictReader(existing_file)
+                latest_logged_step = max(
+                    (int(row["step"]) for row in rows),
+                    default=0
+                )
+
+            if latest_logged_step > start_step:
+                raise RuntimeError(
+                    "CSV contains data newer than the checkpoint. "
+                    "Resume was stopped to prevent mixing timelines."
+                )
+        elif metrics_path.exists():
+            raise FileExistsError(
+                f"Training metrics file already exists: {metrics_path}"
+            )
         logger = WandbLogger(
             project=logging_config["wandb_project"],
             run_name=run_name,
             config=config,
-            log_dir=str(log_dir)
+            log_dir=str(log_dir),
+            resume=resume_from is not None
         )
 
         print("Experiment:", run_name)
@@ -245,17 +308,18 @@ def train(
         print("Log directory:", log_dir)
         print("Training started!")
 
-        with (log_dir / "training_metrics.csv").open(
-            "w",
+        with metrics_path.open(
+            "a" if resume_from is not None else "w",
             newline=""
         ) as log_file:
             writer = csv.writer(log_file)
 
-            writer.writerow(
-                ["step", "episode", "reward", "average_reward", "epsilon"]
-            )
+            if resume_from is None:
+                writer.writerow(
+                    ["step", "episode", "reward", "average_reward", "epsilon"]
+                )
 
-            for step in range(1, total_steps + 1):
+            for step in range(start_step + 1, total_steps + 1):
                 epsilon = scheduler.get_epsilon(step - 1)
                 action = agent.select_action(state, epsilon)
 
@@ -423,8 +487,18 @@ if __name__ == "__main__":
         default="experiments/configs/dqn.yaml"
     )
 
+    parser.add_argument(
+        "--resume-from",
+        type=str,
+        default=None
+    )
+
     args = parser.parse_args()
 
-    train(config_path=args.config)
+    train(
+        config_path=args.config,
+        resume_from=args.resume_from
+    )
+
 
 
