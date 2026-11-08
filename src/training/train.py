@@ -14,6 +14,7 @@ from src.training.epsilon_scheduler import LinearEpsilonScheduler
 from src.utils.config import load_config
 from src.utils.pong_environment import PongEnvironment
 from src.utils.random_state import get_random_state, set_random_state
+from src.utils.seed import set_seed
 from src.utils.wandb_logger import WandbLogger
 
 
@@ -158,6 +159,9 @@ def train(
         resume_from: Optional path to a complete training checkpoint.
     """
     config = load_config(config_path)
+    seed = config["seed"]
+
+    set_seed(seed)
 
     experiment_name = Path(config_path).stem
 
@@ -245,7 +249,7 @@ def train(
     last_loss = float("nan")
     start_step = 0
 
-    state = env.reset()
+    state = env.reset(seed=seed if resume_from is None else None)
 
     try:
         if resume_from is not None:
@@ -302,6 +306,7 @@ def train(
         )
 
         print("Experiment:", run_name)
+        print("Seed:", seed)
         print("Device:", device)
         print("Total steps:", total_steps)
         print("Checkpoint directory:", checkpoint_dir)
