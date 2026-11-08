@@ -26,14 +26,17 @@ class PongEnvironment:
         self.action_mapping = [0, 2, 3]
         self.num_actions = len(self.action_mapping)
 
-    def reset(self) -> np.ndarray:
+    def reset(self, seed: int | None = None) -> np.ndarray:
         """
         Reset Pong and initialize the frame stack.
+
+        Args:
+            seed: Optional random seed for the environment.
 
         Returns:
             Initial state with shape (num_frames, 84, 84).
         """
-        observation, _ = self.env.reset()
+        observation, _ = self.env.reset(seed=seed)
         frame = preprocess_frame(observation)
 
         return self.frame_stack.reset(frame)
