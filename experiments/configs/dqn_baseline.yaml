@@ -15,15 +15,15 @@ replay_buffer:
   warmup_steps: 20000
 
 target_network:
-  update_frequency: 10000
+  update_frequency: 2000
 
 optimization:
   train_frequency: 4
 
 exploration:
   epsilon_start: 1.0
-  epsilon_end: 0.1
-  epsilon_decay_steps: 1000000
+  epsilon_end: 0.05
+  epsilon_decay_steps: 500000
 
 evaluation:
   frequency: 50000
