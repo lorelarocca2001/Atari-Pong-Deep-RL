@@ -180,6 +180,60 @@ def plot_q_values(
     plt.close()
 
 
+def plot_q_advantages(
+    records: list[dict],
+    figure_dir: Path
+) -> None:
+    """Plot action advantages during the first episode."""
+    episode_records = [
+        row for row in records if row["episode"] == 1
+    ]
+
+    steps = np.array([
+        row["step"] for row in episode_records
+    ])
+
+    q_values = np.array([
+        [row["q_noop"], row["q_up"], row["q_down"]]
+        for row in episode_records
+    ])
+
+    advantages = q_values - q_values.mean(
+        axis=1,
+        keepdims=True
+    )
+
+    plt.figure(figsize=(12, 5))
+
+    for action, label in enumerate(["NOOP", "UP", "DOWN"]):
+        plt.plot(
+            steps,
+            advantages[:, action],
+            label=label,
+            linewidth=1
+        )
+
+    plt.axhline(
+        0,
+        color="black",
+        linestyle="--",
+        linewidth=0.8
+    )
+
+    plt.xlabel("Environment step")
+    plt.ylabel("Q-value advantage")
+    plt.title("Action Advantages During Gameplay")
+    plt.legend()
+    plt.tight_layout()
+
+    plt.savefig(
+        figure_dir / "q_value_advantages.png",
+        dpi=300
+    )
+
+    plt.close()
+
+
 def visualize_policy(
     checkpoint_path: str,
     num_episodes: int = 10,
@@ -261,6 +315,7 @@ def visualize_policy(
 
     plot_td_errors(records, figures_dir)
     plot_q_values(records, figures_dir)
+    plot_q_advantages(records, figures_dir)
 
     errors = np.array([
         row["td_error"] for row in records
