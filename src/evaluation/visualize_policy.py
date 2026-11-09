@@ -4,9 +4,11 @@ import csv
 import gc
 from pathlib import Path
 
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from matplotlib.colors import BoundaryNorm, ListedColormap
 
 from src.training.dqn_agent import DQNAgent
 from src.utils.pong_environment import PongEnvironment
@@ -15,13 +17,86 @@ from src.utils.pong_environment import PongEnvironment
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
+def extract_game_positions(frame: np.ndarray) -> tuple | None:
+    """Detect the ball and the agent paddle in an RGB Pong frame."""
+    height, width = frame.shape[:2]
+
+    rgb = frame.astype(np.int16)
+    red, green, blue = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
+
+    paddle_mask = (
+        (green > red + 25)
+        & (green > blue + 25)
+        & (green > 80)
+    ).astype(np.uint8)
+
+    paddle_mask[:, :int(width * 0.65)] = 0
+    paddle_mask[:int(height * 0.12), :] = 0
+
+    count, _, stats, centroids = cv2.connectedComponentsWithStats(
+        paddle_mask, connectivity=8
+    )
+
+    paddle_candidates = [
+        i for i in range(1, count)
+        if 8 <= stats[i, cv2.CC_STAT_HEIGHT] <= 50
+        and 1 <= stats[i, cv2.CC_STAT_WIDTH] <= 12
+    ]
+
+    if not paddle_candidates:
+        return None
+
+    paddle_index = max(
+        paddle_candidates,
+        key=lambda i: stats[i, cv2.CC_STAT_AREA]
+    )
+
+    paddle_y = float(centroids[paddle_index, 1])
+
+    ball_mask = (
+        (rgb.min(axis=2) >= 190)
+        & ((rgb.max(axis=2) - rgb.min(axis=2)) <= 15)
+    ).astype(np.uint8)
+
+    ball_mask[:, :int(width * 0.08)] = 0
+    ball_mask[:, int(width * 0.92):] = 0
+    ball_mask[:int(height * 0.18), :] = 0
+    ball_mask[int(height * 0.92):, :] = 0
+
+    count, _, stats, centroids = cv2.connectedComponentsWithStats(
+        ball_mask, connectivity=8
+    )
+
+    ball_candidates = [
+        i for i in range(1, count)
+        if 2 <= stats[i, cv2.CC_STAT_AREA] <= 80
+        and stats[i, cv2.CC_STAT_WIDTH] <= 10
+        and stats[i, cv2.CC_STAT_HEIGHT] <= 10
+    ]
+
+    if not ball_candidates:
+        return None
+
+    ball_index = max(
+        ball_candidates,
+        key=lambda i: stats[i, cv2.CC_STAT_AREA]
+    )
+
+    ball_x, ball_y = centroids[ball_index]
+
+    relative_y = (ball_y - paddle_y) / height
+    normalized_x = ball_x / width
+
+    return float(relative_y), float(normalized_x)
+
+
 def collect_policy_data(
     agent: DQNAgent,
     num_episodes: int,
     seed_start: int,
     gamma: float
 ) -> list[dict]:
-    """Collect Q-values and TD errors from greedy Pong episodes."""
+    """Collect Q-values, TD errors, and positions from greedy Pong episodes."""
     env = PongEnvironment(num_frames=4)
     records = []
 
@@ -36,6 +111,9 @@ def collect_policy_data(
             episode_reward = 0.0
 
             while not done:
+                frame = np.asarray(env.env.render())
+                positions = extract_game_positions(frame)
+
                 state_tensor = torch.as_tensor(
                     state,
                     device=agent.device
@@ -79,7 +157,13 @@ def collect_policy_data(
                     "q_down": float(q_values[0, 2].item()),
                     "selected_q": selected_q,
                     "td_error": td_error,
-                    "absolute_td_error": abs(td_error)
+                    "absolute_td_error": abs(td_error),
+                    "relative_ball_y": (
+                        positions[0] if positions is not None else None
+                    ),
+                    "ball_x": (
+                        positions[1] if positions is not None else None
+                    )
                 })
 
                 state = next_state
@@ -234,6 +318,128 @@ def plot_q_advantages(
     plt.close()
 
 
+def plot_policy_heatmap(
+    records: list[dict],
+    figure_dir: Path
+) -> None:
+    """Plot the most frequent DQN action across Pong state regions."""
+    valid_records = [
+        row for row in records
+        if row["relative_ball_y"] is not None
+        and row["ball_x"] is not None
+    ]
+
+    if not valid_records:
+        raise ValueError("No valid ball and paddle positions detected.")
+
+    relative_y = np.array([
+        row["relative_ball_y"] for row in valid_records
+    ])
+
+    ball_x = np.array([
+        row["ball_x"] for row in valid_records
+    ])
+
+    actions = np.array([
+        row["action"] for row in valid_records
+    ])
+
+    x_edges = np.linspace(-1.0, 1.0, 21)
+    y_edges = np.linspace(0.0, 1.0, 13)
+
+    counts = np.zeros(
+        (len(y_edges) - 1, len(x_edges) - 1, 3),
+        dtype=np.int64
+    )
+
+    x_bins = np.searchsorted(x_edges, relative_y, side="right") - 1
+    y_bins = np.searchsorted(y_edges, ball_x, side="right") - 1
+
+    for x_bin, y_bin, action in zip(x_bins, y_bins, actions):
+        if (
+            0 <= x_bin < counts.shape[1]
+            and 0 <= y_bin < counts.shape[0]
+        ):
+            counts[y_bin, x_bin, action] += 1
+
+    totals = counts.sum(axis=2)
+    dominant_actions = counts.argmax(axis=2).astype(float)
+
+    dominant_actions[totals < 10] = np.nan
+
+    cmap = ListedColormap([
+        "#1f77b4",
+        "#ff7f0e",
+        "#2ca02c"
+    ])
+    cmap.set_bad("#dddddd")
+
+    norm = BoundaryNorm(
+        [-0.5, 0.5, 1.5, 2.5],
+        cmap.N
+    )
+
+    fig, ax = plt.subplots(figsize=(11, 6))
+
+    image = ax.imshow(
+        dominant_actions,
+        origin="lower",
+        aspect="auto",
+        interpolation="nearest",
+        extent=[
+            x_edges[0],
+            x_edges[-1],
+            y_edges[0],
+            y_edges[-1]
+        ],
+        cmap=cmap,
+        norm=norm
+    )
+
+    colorbar = fig.colorbar(
+        image,
+        ax=ax,
+        ticks=[0, 1, 2]
+    )
+
+    colorbar.ax.set_yticklabels([
+        "NOOP",
+        "UP",
+        "DOWN"
+    ])
+
+    ax.axvline(
+        0,
+        color="black",
+        linestyle="--",
+        linewidth=1
+    )
+
+    ax.set_xlabel(
+        "Relative ball height (ball_y - paddle_y) / screen_height"
+    )
+    ax.set_ylabel("Normalized ball X position")
+    ax.set_title("DQN Policy Heatmap")
+
+    fig.tight_layout()
+
+    fig.savefig(
+        figure_dir / "policy_heatmap.png",
+        dpi=300
+    )
+
+    plt.close(fig)
+
+    print(
+        f"Object detection: {len(valid_records)}/{len(records)} "
+        f"frames ({len(valid_records) / len(records) * 100:.1f}%)"
+    )
+    print(
+        f"Heatmap cells with at least 10 samples: "
+        f"{np.sum(totals >= 10)}/{totals.size}"
+    )
+
+
 def visualize_policy(
     checkpoint_path: str,
     num_episodes: int = 10,
@@ -261,8 +467,10 @@ def visualize_policy(
     ) / experiment_name
 
     results_dir = (
-        Path(results_root) if results_root else PROJECT_ROOT / "results"
-    ) / experiment_name
+    Path(results_root)
+    if results_root
+    else PROJECT_ROOT / "experiments" / "results"
+) / experiment_name
 
     figures_dir.mkdir(parents=True, exist_ok=True)
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -316,6 +524,7 @@ def visualize_policy(
     plot_td_errors(records, figures_dir)
     plot_q_values(records, figures_dir)
     plot_q_advantages(records, figures_dir)
+    plot_policy_heatmap(records, figures_dir)
 
     errors = np.array([
         row["td_error"] for row in records
