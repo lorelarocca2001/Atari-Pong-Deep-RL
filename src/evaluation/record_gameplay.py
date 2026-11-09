@@ -1,7 +1,7 @@
 
-
 import argparse
 import gc
+import random
 from pathlib import Path
 
 import cv2
@@ -12,68 +12,88 @@ from src.training.dqn_agent import DQNAgent
 from src.utils.pong_environment import PongEnvironment
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
 def record_gameplay(
-    checkpoint_path: str,
+    agent_type: str = "dqn",
+    checkpoint_path: str | None = None,
     output_path: str | None = None,
     seed: int = 1000,
     fps: int = 30
 ) -> None:
     """
-    Record a Pong episode played by a trained DQN agent.
+    Record a Pong episode played by a DQN or random agent.
 
     Args:
-        checkpoint_path: Path to the trained DQN checkpoint.
-        output_path: Optional destination MP4 video path.
-        seed: Environment seed.
+        agent_type: Agent type, either dqn or random.
+        checkpoint_path: DQN checkpoint path, required for dqn.
+        output_path: Optional destination MP4 path.
+        seed: Environment and random agent seed.
         fps: Output video frame rate.
     """
+    if agent_type not in ("dqn", "random"):
+        raise ValueError("Agent type must be dqn or random.")
+
     if fps <= 0:
         raise ValueError("FPS must be positive.")
-
-    checkpoint_path = Path(checkpoint_path)
-
-    if not checkpoint_path.is_file():
-        raise FileNotFoundError(
-            f"Checkpoint not found: {checkpoint_path}"
-        )
-
-    if output_path is None:
-        experiment_name = checkpoint_path.parent.name
-        output_path = (
-            Path(__file__).resolve().parents[2]
-            / "experiments"
-            / "results"
-            / experiment_name
-            / "gameplay.mp4")
-    else:
-        output_path = Path(output_path)
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     device = torch.device(
         "cuda:0" if torch.cuda.is_available() else "cpu"
     )
 
-    checkpoint = torch.load(
-        checkpoint_path,
-        map_location="cpu",
-        weights_only=True,
-        mmap=True
-    )
+    agent = None
+    rng = random.Random(seed)
 
-    agent = DQNAgent(
-        num_actions=3,
-        device=device
-    )
+    if agent_type == "dqn":
+        if checkpoint_path is None:
+            raise ValueError("A checkpoint is required for the DQN agent.")
 
-    agent.online_network.load_state_dict(
-        checkpoint["online_network"]
-    )
+        checkpoint_path = Path(checkpoint_path)
 
-    agent.online_network.eval()
+        if not checkpoint_path.is_file():
+            raise FileNotFoundError(
+                f"Checkpoint not found: {checkpoint_path}"
+            )
 
-    del checkpoint
-    gc.collect()
+        experiment_name = checkpoint_path.parent.name
+
+        checkpoint = torch.load(
+            checkpoint_path,
+            map_location="cpu",
+            weights_only=True,
+            mmap=True
+        )
+
+        agent = DQNAgent(
+            num_actions=3,
+            device=device
+        )
+
+        agent.online_network.load_state_dict(
+            checkpoint["online_network"]
+        )
+
+        agent.online_network.eval()
+
+        del checkpoint
+        gc.collect()
+
+    else:
+        experiment_name = "random_agent"
+
+    if output_path is None:
+        output_path = (
+            PROJECT_ROOT
+            / "experiments"
+            / "results"
+            / experiment_name
+            / "gameplay.mp4"
+        )
+    else:
+        output_path = Path(output_path)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     env = PongEnvironment(num_frames=4)
     writer = None
@@ -105,11 +125,14 @@ def record_gameplay(
         done = False
 
         while not done:
-            with torch.no_grad():
-                action = agent.select_action(
-                    state,
-                    epsilon=0.0
-                )
+            if agent_type == "random":
+                action = rng.randrange(env.num_actions)
+            else:
+                with torch.no_grad():
+                    action = agent.select_action(
+                        state,
+                        epsilon=0.0
+                    )
 
             state, reward, terminated, truncated, _ = env.step(
                 action
@@ -126,7 +149,7 @@ def record_gameplay(
             done = terminated or truncated
 
         print("\nGameplay recording completed!")
-        print(f"Device: {device}")
+        print(f"Agent: {agent_type}")
         print(f"Seed: {seed}")
         print(f"Total steps: {total_steps}")
         print(f"Episode reward: {episode_reward}")
@@ -143,9 +166,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
+        "--agent",
+        type=str,
+        choices=["dqn", "random"],
+        default="dqn"
+    )
+
+    parser.add_argument(
         "--checkpoint",
         type=str,
-        required=True
+        default=None
     )
 
     parser.add_argument(
@@ -169,8 +199,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     record_gameplay(
+        agent_type=args.agent,
         checkpoint_path=args.checkpoint,
         output_path=args.output,
         seed=args.seed,
         fps=args.fps
     )
+
