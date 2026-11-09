@@ -12,5 +12,6 @@ experiments/checkpoints/
 .ipynb_checkpoints/
 
 *.log
+*.mp4
 
 .DS_Store
