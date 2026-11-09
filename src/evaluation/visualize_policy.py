@@ -39,8 +39,8 @@ def extract_game_positions(frame: np.ndarray) -> tuple | None:
 
     paddle_candidates = [
         i for i in range(1, count)
-        if 8 <= stats[i, cv2.CC_STAT_HEIGHT] <= 50
-        and 1 <= stats[i, cv2.CC_STAT_WIDTH] <= 12
+        if 4 <= stats[i, cv2.CC_STAT_HEIGHT] <= 50
+        and 2 <= stats[i, cv2.CC_STAT_WIDTH] <= 8
     ]
 
     if not paddle_candidates:
