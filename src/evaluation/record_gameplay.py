@@ -1,4 +1,5 @@
 
+
 import argparse
 import gc
 from pathlib import Path
@@ -13,7 +14,7 @@ from src.utils.pong_environment import PongEnvironment
 
 def record_gameplay(
     checkpoint_path: str,
-    output_path: str,
+    output_path: str | None = None,
     seed: int = 1000,
     fps: int = 30
 ) -> None:
@@ -22,7 +23,7 @@ def record_gameplay(
 
     Args:
         checkpoint_path: Path to the trained DQN checkpoint.
-        output_path: Destination MP4 video path.
+        output_path: Optional destination MP4 video path.
         seed: Environment seed.
         fps: Output video frame rate.
     """
@@ -30,12 +31,17 @@ def record_gameplay(
         raise ValueError("FPS must be positive.")
 
     checkpoint_path = Path(checkpoint_path)
-    output_path = Path(output_path)
 
     if not checkpoint_path.is_file():
         raise FileNotFoundError(
             f"Checkpoint not found: {checkpoint_path}"
         )
+
+    if output_path is None:
+        experiment_name = checkpoint_path.parent.name
+        output_path = Path("results") / experiment_name / "gameplay.mp4"
+    else:
+        output_path = Path(output_path)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -140,7 +146,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output",
         type=str,
-        required=True
+        default=None
     )
 
     parser.add_argument(
