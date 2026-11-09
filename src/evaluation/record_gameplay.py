@@ -39,7 +39,12 @@ def record_gameplay(
 
     if output_path is None:
         experiment_name = checkpoint_path.parent.name
-        output_path = Path("results") / experiment_name / "gameplay.mp4"
+        output_path = (
+            Path(__file__).resolve().parents[2]
+            / "experiments"
+            / "results"
+            / experiment_name
+            / "gameplay.mp4")
     else:
         output_path = Path(output_path)
 
