@@ -1,0 +1,2 @@
+agent,episodes,mean_reward,std_reward,median_reward,min_reward,max_reward,win_rate
+Random,100,-20.6,0.648074069840786,-21.0,-21.0,-18.0,0.0
