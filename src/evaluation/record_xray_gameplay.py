@@ -439,7 +439,7 @@ def record_xray_gameplay(
             str(output_path),
             cv2.VideoWriter_fourcc(*"mp4v"),
             fps,
-            (1100, 560)
+            (1920, 1080)
         )
 
         if not writer.isOpened():
@@ -504,6 +504,11 @@ def record_xray_gameplay(
                 saliency_step=saliency_step
             )
 
+            video_frame = cv2.resize(
+                video_frame,
+                (1920, 1080),
+                interpolation=cv2.INTER_CUBIC)
+            
             writer.write(video_frame)
 
             state, reward, terminated, truncated, _ = env.step(
