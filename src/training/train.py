@@ -196,6 +196,7 @@ def train(
     batch_size = training_config["batch_size"]
     learning_rate = training_config["learning_rate"]
     gamma = training_config["gamma"]
+    activation = config.get("model", {}).get("activation", "leaky_relu")
 
     buffer_capacity = replay_config["capacity"]
     warmup_steps = replay_config["warmup_steps"]
@@ -227,7 +228,8 @@ def train(
         num_actions=env.num_actions,
         device=device,
         learning_rate=learning_rate,
-        gamma=gamma
+        gamma=gamma,
+        activation=activation
     )
 
     buffer = ReplayBuffer(capacity=buffer_capacity)
@@ -308,6 +310,7 @@ def train(
         print("Experiment:", run_name)
         print("Seed:", seed)
         print("Device:", device)
+        print("Activation:", activation)
         print("Total steps:", total_steps)
         print("Checkpoint directory:", checkpoint_dir)
         print("Log directory:", log_dir)
