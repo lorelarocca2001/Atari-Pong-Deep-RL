@@ -26,11 +26,13 @@ def compute_occlusion_saliency(
     stride: int = 8,
     batch_size: int = 64
 ) -> np.ndarray:
-    """Compute occlusion saliency on the newest stacked frame."""
-    height, width = state.shape[-2:]
+    """Compute temporal occlusion saliency across all stacked frames."""
+    num_frames, height, width = state.shape
 
-    original = state[-1]
-    blurred = cv2.GaussianBlur(original, (11, 11), 0)
+    blurred = np.stack([
+        cv2.GaussianBlur(frame, (11, 11), 0)
+        for frame in state
+    ])
 
     centers = [
         (y, x)
@@ -69,19 +71,31 @@ def compute_occlusion_saliency(
                 / (2 * sigma ** 2)
             ).astype(np.float32)
 
-            patch = original[y0:y1, x0:x1].astype(np.float32)
-            blurred_patch = blurred[y0:y1, x0:x1].astype(
-                np.float32
-            )
+            mask_3d = mask[None, :, :]
+
+            original_patch = state[
+                :,
+                y0:y1,
+                x0:x1
+            ].astype(np.float32)
+
+            blurred_patch = blurred[
+                :,
+                y0:y1,
+                x0:x1
+            ].astype(np.float32)
 
             perturbed = (
-                patch * (1 - mask)
-                + blurred_patch * mask
+                original_patch * (1 - mask_3d)
+                + blurred_patch * mask_3d
             )
 
-            batch_states[index, -1, y0:y1, x0:x1] = (
-                perturbed.astype(np.uint8)
-            )
+            batch_states[
+                index,
+                :,
+                y0:y1,
+                x0:x1
+            ] = perturbed.astype(np.uint8)
 
             masks.append((y0, y1, x0, x1, mask))
 
@@ -92,11 +106,15 @@ def compute_occlusion_saliency(
 
         with torch.inference_mode():
             q_values = network(batch_tensor)
-            perturbed_q = q_values[:, action].cpu().numpy()
 
-        differences = np.maximum(
-            original_q - perturbed_q,
-            0.0
+            perturbed_q = (
+                q_values[:, action]
+                .cpu()
+                .numpy()
+            )
+
+        differences = np.abs(
+            original_q - perturbed_q
         )
 
         for difference, mask_data in zip(differences, masks):
@@ -230,7 +248,7 @@ def create_xray_frame(
 
     draw_text(
         canvas,
-        "Frame: newest of 4",
+        "Saliency: all 4 stacked frames",
         (390, 445),
         scale=0.5
     )
@@ -244,7 +262,7 @@ def create_xray_frame(
 
     draw_text(
         canvas,
-        "Occlusion: positive Q-value drop",
+        "Occlusion: absolute Q-value change",
         (390, 495),
         scale=0.44
     )
