@@ -49,6 +49,7 @@ def save_checkpoint(
 
     checkpoint = {
         "step": step,
+        "activation": agent.activation,
         "online_network": agent.online_network.state_dict(),
         "target_network": agent.target_network.state_dict(),
         "optimizer": agent.optimizer.state_dict(),
@@ -97,6 +98,18 @@ def load_checkpoint(
         checkpoint_path,
         map_location="cpu",
         weights_only=True
+    )
+
+    checkpoint_activation = checkpoint.get(
+    "activation",
+    "leaky_relu"
+    )
+    
+    if checkpoint_activation != agent.activation:
+       raise ValueError(
+        f"Checkpoint activation mismatch: "
+        f"checkpoint uses '{checkpoint_activation}', "
+        f"but the agent uses '{agent.activation}'."
     )
 
     agent.online_network.load_state_dict(
