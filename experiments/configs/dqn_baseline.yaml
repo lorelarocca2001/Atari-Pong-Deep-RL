@@ -3,6 +3,9 @@ seed: 42
 algorithm: DQN
 environment: ALE/Pong-v5
 
+model:
+  activation: leaky_relu
+
 training:
   total_steps: 4000000
   batch_size: 32
