@@ -10,7 +10,11 @@ import torch
 from src.datasets.replay_buffer import ReplayBuffer
 from src.evaluation.evaluate import evaluate_agent
 from src.training.dqn_agent import DQNAgent
-from src.training.epsilon_scheduler import LinearEpsilonScheduler
+from src.training.epsilon_scheduler import (
+    LinearEpsilonScheduler,
+    ExponentialEpsilonScheduler,
+    ConstantEpsilonScheduler
+)
 from src.utils.config import load_config
 from src.utils.pong_environment import PongEnvironment
 from src.utils.random_state import get_random_state, set_random_state
@@ -220,6 +224,7 @@ def train(
     epsilon_start = exploration_config["epsilon_start"]
     epsilon_end = exploration_config["epsilon_end"]
     epsilon_decay_steps = exploration_config["epsilon_decay_steps"]
+    epsilon_schedule = exploration_config.get("schedule", "linear")
 
     evaluation_frequency = evaluation_config["frequency"]
     evaluation_episodes = evaluation_config["episodes"]
@@ -247,11 +252,27 @@ def train(
 
     buffer = ReplayBuffer(capacity=buffer_capacity)
 
-    scheduler = LinearEpsilonScheduler(
-        epsilon_start=epsilon_start,
-        epsilon_end=epsilon_end,
-        decay_steps=epsilon_decay_steps
-    )
+    if epsilon_schedule == "linear":
+        scheduler = LinearEpsilonScheduler(
+            epsilon_start=epsilon_start,
+            epsilon_end=epsilon_end,
+            decay_steps=epsilon_decay_steps
+        )
+    elif epsilon_schedule == "exponential":
+        scheduler = ExponentialEpsilonScheduler(
+            epsilon_start=epsilon_start,
+            epsilon_end=epsilon_end,
+            decay_steps=epsilon_decay_steps,
+            decay_rate=exploration_config.get("decay_rate", 5.0)
+        )
+    elif epsilon_schedule == "constant":
+        scheduler = ConstantEpsilonScheduler(
+            epsilon=exploration_config.get("epsilon", 0.1)
+        )
+    else:
+        raise ValueError(
+            f"Unsupported epsilon schedule: {epsilon_schedule}"
+        )
 
     logger = None
 
@@ -324,6 +345,7 @@ def train(
         print("Seed:", seed)
         print("Device:", device)
         print("Activation:", activation)
+        print("Epsilon schedule:", epsilon_schedule)
         print("Total steps:", total_steps)
         print("Checkpoint directory:", checkpoint_dir)
         print("Log directory:", log_dir)
@@ -505,7 +527,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="experiments/configs/dqn.yaml"
+        default="experiments/configs/dqn_baseline.yaml"
     )
 
     parser.add_argument(
