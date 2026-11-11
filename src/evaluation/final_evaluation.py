@@ -81,9 +81,12 @@ def evaluate_checkpoints(
             mmap=True
         )
 
+        activation = checkpoint.get("activation", "leaky_relu")
+
         agent = DQNAgent(
             num_actions=3,
-            device=device
+            device=device,
+            activation=activation
         )
 
         agent.online_network.load_state_dict(
@@ -99,6 +102,7 @@ def evaluate_checkpoints(
 
         print(f"\nExperiment: {experiment_name}")
         print(f"Checkpoint step: {step:,}")
+        print(f"Activation: {activation}")
         print(f"Device: {device}")
         print(f"Episodes: {num_episodes}")
 
