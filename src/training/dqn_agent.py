@@ -17,7 +17,8 @@ class DQNAgent:
         device: torch.device,
         learning_rate: float = 1e-4,
         gamma: float = 0.99,
-        activation: str = "leaky_relu"
+        activation: str = "leaky_relu",
+        double_dqn: bool = False
     ):
         """
         Initialize the online and target networks.
@@ -28,11 +29,13 @@ class DQNAgent:
             learning_rate: Learning rate for the Adam optimizer.
             gamma: Discount factor for future rewards.
             activation: Activation function for the last convolutional layer.
+            double_dqn: Whether to use Double DQN targets.
         """
         self.device = device
         self.gamma = gamma
         self.num_actions = num_actions
         self.activation = activation
+        self.double_dqn = double_dqn
 
         self.online_network = DQN(
             num_actions=num_actions,
@@ -65,7 +68,7 @@ class DQNAgent:
 
     def train_step(self, batch: tuple) -> float:
         """
-        Perform one DQN optimization step using a sampled minibatch.
+        Perform one optimization step using DQN or Double DQN targets.
 
         Args:
             batch: Tuple of states, actions, rewards, next_states, and dones.
@@ -83,12 +86,24 @@ class DQNAgent:
         ).squeeze(1)
 
         with torch.no_grad():
-            next_q_values = self.target_network(next_states)
-            max_next_q_values = next_q_values.max(dim=1).values
+            if self.double_dqn:
+                next_actions = self.online_network(
+                    next_states
+                ).argmax(dim=1, keepdim=True)
+
+                next_q_values = self.target_network(
+                    next_states
+                ).gather(
+                    1, next_actions
+                ).squeeze(1)
+            else:
+                next_q_values = self.target_network(
+                    next_states
+                ).max(dim=1).values
 
             targets = (
                 rewards
-                + self.gamma * (1.0 - dones) * max_next_q_values
+                + self.gamma * (1.0 - dones) * next_q_values
             )
 
         loss = self.loss_function(current_q_values, targets)
@@ -125,4 +140,5 @@ class DQNAgent:
             action = q_values.argmax(dim=1).item()
 
         return int(action)
+
 
