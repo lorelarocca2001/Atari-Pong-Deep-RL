@@ -214,6 +214,7 @@ def train(
     learning_rate = training_config["learning_rate"]
     gamma = training_config["gamma"]
     activation = config.get("model", {}).get("activation", "leaky_relu")
+    double_dqn = config.get("model", {}).get("double_dqn", False)
 
     buffer_capacity = replay_config["capacity"]
     warmup_steps = replay_config["warmup_steps"]
@@ -247,7 +248,8 @@ def train(
         device=device,
         learning_rate=learning_rate,
         gamma=gamma,
-        activation=activation
+        activation=activation,
+        double_dqn=double_dqn
     )
 
     buffer = ReplayBuffer(capacity=buffer_capacity)
@@ -345,6 +347,7 @@ def train(
         print("Seed:", seed)
         print("Device:", device)
         print("Activation:", activation)
+        print("Algorithm:", "Double DQN" if double_dqn else "DQN")
         print("Epsilon schedule:", epsilon_schedule)
         print("Total steps:", total_steps)
         print("Checkpoint directory:", checkpoint_dir)
