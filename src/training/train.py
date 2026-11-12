@@ -54,6 +54,7 @@ def save_checkpoint(
     checkpoint = {
         "step": step,
         "activation": agent.activation,
+        "double_dqn": agent.double_dqn,
         "online_network": agent.online_network.state_dict(),
         "target_network": agent.target_network.state_dict(),
         "optimizer": agent.optimizer.state_dict(),
@@ -114,6 +115,18 @@ def load_checkpoint(
         f"Checkpoint activation mismatch: "
         f"checkpoint uses '{checkpoint_activation}', "
         f"but the agent uses '{agent.activation}'."
+    )
+
+    checkpoint_double_dqn = checkpoint.get(
+    "double_dqn",
+    False
+    )
+
+    if checkpoint_double_dqn != agent.double_dqn:
+       raise ValueError(
+        f"Checkpoint algorithm mismatch: "
+        f"checkpoint uses double_dqn={checkpoint_double_dqn}, "
+        f"but the agent uses double_dqn={agent.double_dqn}."
     )
 
     agent.online_network.load_state_dict(
