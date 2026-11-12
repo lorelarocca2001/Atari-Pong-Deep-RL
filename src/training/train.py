@@ -221,11 +221,11 @@ def train(
     train_frequency = optimization_config["train_frequency"]
     target_update_frequency = target_config["update_frequency"]
 
-    epsilon_start = exploration_config["epsilon_start"]
-    epsilon_end = exploration_config["epsilon_end"]
-    epsilon_decay_steps = exploration_config["epsilon_decay_steps"]
     epsilon_schedule = exploration_config.get("schedule", "linear")
-
+    epsilon_start = exploration_config.get("epsilon_start", 1.0)
+    epsilon_end = exploration_config.get("epsilon_end", 0.1)
+    epsilon_decay_steps = exploration_config.get("epsilon_decay_steps", 1_000_000)
+    
     evaluation_frequency = evaluation_config["frequency"]
     evaluation_episodes = evaluation_config["episodes"]
     evaluation_epsilon = evaluation_config["epsilon"]
