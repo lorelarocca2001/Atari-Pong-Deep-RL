@@ -13,5 +13,6 @@ experiments/checkpoints/
 
 *.log
 *.mp4
+*.pth
 
 .DS_Store
