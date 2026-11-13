@@ -1,0 +1,2 @@
+experiment,algorithm,step,episodes,epsilon,gamma,transitions,mean_error,mae,rmse,overestimation_rate
+20261113_045905_dqn_double,Double DQN,6000000,100,0.01,0.99,516216,0.19493663752901824,0.323765389504508,0.4236820720980639,69.38413377345917

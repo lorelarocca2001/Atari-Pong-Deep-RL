@@ -1,0 +1,2 @@
+experiment,step,episodes,epsilon,mean_reward,std_reward,median_reward,min_reward,max_reward,win_rate
+20261113_045905_dqn_double,6000000,100,0.01,15.15,2.6052830940226053,15.0,9.0,20.0,100.0
