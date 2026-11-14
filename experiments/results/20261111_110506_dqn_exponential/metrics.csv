@@ -1,0 +1,2 @@
+experiment,step,episodes,epsilon,mean_reward,std_reward,median_reward,min_reward,max_reward,win_rate
+20261111_110506_dqn_exponential,6000000,100,0.01,17.52,1.8840382161729097,18.0,12.0,21.0,100.0
