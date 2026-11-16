@@ -30,6 +30,9 @@ def save_checkpoint(
     directory: Path,
     state: np.ndarray,
     episode_reward: float,
+    episode_original_reward: float,
+    episode_rally_hits: int,
+    episode_original_rewards: deque,
     episode_count: int,
     episode_rewards: deque,
     last_loss: float
@@ -64,8 +67,11 @@ def save_checkpoint(
         "training_state": {
             "state": torch.from_numpy(state.copy()),
             "episode_reward": episode_reward,
+            "episode_original_reward": episode_original_reward,
+            "episode_rally_hits": episode_rally_hits,
             "episode_count": episode_count,
             "episode_rewards": list(episode_rewards),
+            "episode_original_rewards": list(episode_original_rewards),
             "last_loss": last_loss
         }
     }
@@ -156,16 +162,32 @@ def load_checkpoint(
     training_state = checkpoint["training_state"]
 
     restored_state = {
-        "step": int(checkpoint["step"]),
-        "state": training_state["state"].cpu().numpy().copy(),
-        "episode_reward": float(training_state["episode_reward"]),
-        "episode_count": int(training_state["episode_count"]),
-        "episode_rewards": deque(
-            training_state["episode_rewards"],
-            maxlen=100
+    "step": int(checkpoint["step"]),
+    "state": training_state["state"].cpu().numpy().copy(),
+    "episode_reward": float(training_state["episode_reward"]),
+    "episode_original_reward": float(
+        training_state.get(
+            "episode_original_reward",
+            training_state["episode_reward"]
+        )
+    ),
+    "episode_rally_hits": int(
+        training_state.get("episode_rally_hits", 0)
+    ),
+    "episode_count": int(training_state["episode_count"]),
+    "episode_rewards": deque(
+        training_state["episode_rewards"],
+        maxlen=100
+    ),
+    "episode_original_rewards": deque(
+        training_state.get(
+            "episode_original_rewards",
+            training_state["episode_rewards"]
         ),
-        "last_loss": float(training_state["last_loss"])
-    }
+        maxlen=100
+    ),
+    "last_loss": float(training_state["last_loss"])
+}
 
     set_random_state(checkpoint["random_state"])
 
@@ -322,9 +344,13 @@ def train(
 
             start_step = restored["step"]
             state = restored["state"]
+
             episode_reward = restored["episode_reward"]
+            episode_original_reward = restored["episode_original_reward"]
+            episode_rally_hits = restored["episode_rally_hits"]
             episode_count = restored["episode_count"]
             episode_rewards = restored["episode_rewards"]
+            episode_original_rewards = restored["episode_original_rewards"]
             last_loss = restored["last_loss"]
 
             if start_step >= total_steps:
@@ -532,6 +558,9 @@ def train(
                         directory=checkpoint_dir,
                         state=state,
                         episode_reward=episode_reward,
+                        episode_original_reward=episode_original_reward,
+                        episode_rally_hits=episode_rally_hits,
+                        episode_original_rewards=episode_original_rewards,
                         episode_count=episode_count,
                         episode_rewards=episode_rewards,
                         last_loss=last_loss
@@ -546,6 +575,9 @@ def train(
                 directory=checkpoint_dir,
                 state=state,
                 episode_reward=episode_reward,
+                episode_original_reward=episode_original_reward,
+                episode_rally_hits=episode_rally_hits,
+                episode_original_rewards=episode_original_rewards,
                 episode_count=episode_count,
                 episode_rewards=episode_rewards,
                 last_loss=last_loss
