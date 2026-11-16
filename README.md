@@ -105,6 +105,20 @@ The same evaluation command can be used for the exponential decay, constant epsi
 
 Results are saved as `metrics.csv` and `episode_rewards.csv` in `experiments/results/<RUN_NAME>/`.
 
+**Experimental Results:**
+
+The following table summarizes the final evaluation results obtained after 6,000,000 training steps. Each model was evaluated over 100 episodes.
+
+| Model | Mean Reward | Std. Dev. | Win Rate |
+|---|---:|---:|---:|
+| DQN Baseline | 16.45 | 2.31 | 100% |
+| DQN + Exponential Epsilon Decay | 17.52 | 1.88 | 100% |
+| DQN + Constant Epsilon | 17.84 | 1.75 | 100% |
+| Double DQN | 15.15 | 2.61 | 100% |
+| **DQN + Reward Shaping** | **18.67** | **1.74** | **100%** |
+
+The reward shaping experiment achieved the highest mean reward, while Double DQN reduced empirical Q-value estimation errors compared with the baseline. Results are based on a single training run per configuration.
+
 ### 4. Gameplay Recording
 
 Generate a gameplay video of the trained agent, including Grad-CAM visualizations and Q-value estimates:
@@ -141,8 +155,6 @@ This analysis compares predicted Q-values with observed discounted returns to in
 
 Detailed experimental results and discussions are provided in the official report.
 
-```**
-
 ---
 
-*For the declaration of individual tasks and the use of AI, refer to `docs/REPORT.md`.*
+*For the declaration of individual contributions and the use of AI tools, refer to [REPORT.md](docs/REPORT.md).*
