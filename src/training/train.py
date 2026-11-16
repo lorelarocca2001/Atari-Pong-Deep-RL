@@ -299,8 +299,12 @@ def train(
     log_dir.mkdir(parents=True, exist_ok=True)
 
     episode_rewards = deque(maxlen=100)
+    episode_original_rewards = deque(maxlen=100)
     episode_reward = 0.0
+    episode_original_reward = 0.0
+    episode_rally_hits = 0
     episode_count = 0
+
     last_loss = float("nan")
     start_step = 0
 
@@ -387,9 +391,12 @@ def train(
                 epsilon = scheduler.get_epsilon(step - 1)
                 action = agent.select_action(state, epsilon)
 
-                next_state, reward, terminated, truncated, _ = env.step(
+                next_state, reward, terminated, truncated, info = env.step(
                     action
                 )
+
+                original_reward = info["original_reward"]
+                rally_hit = info["rally_hit"]
 
                 done = terminated or truncated
 
@@ -402,18 +409,28 @@ def train(
                 )
 
                 episode_reward += reward
+                episode_original_reward += original_reward
+                episode_rally_hits += int(rally_hit)
 
                 metrics = {}
 
                 if done:
                     episode_count += 1
                     episode_rewards.append(episode_reward)
+                    episode_original_rewards.append(episode_original_reward)
 
                     average_reward = float(np.mean(episode_rewards))
+
+                    average_original_reward = float(
+                        np.mean(episode_original_rewards))
 
                     metrics.update({
                         "episode/reward": episode_reward,
                         "episode/average_reward_100": average_reward,
+                        "episode/original_reward": episode_original_reward,
+                        "episode/average_original_reward_100": average_original_reward,
+                        "episode/shaped_reward": episode_reward,
+                        "episode/rally_hits": episode_rally_hits,
                         "episode/count": episode_count
                     })
 
@@ -439,6 +456,8 @@ def train(
 
                     state = env.reset()
                     episode_reward = 0.0
+                    episode_original_reward = 0.0
+                    episode_rally_hits = 0
                 else:
                     state = next_state
 
