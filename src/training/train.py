@@ -409,9 +409,15 @@ def train(
             writer = csv.writer(log_file)
 
             if resume_from is None:
-                writer.writerow(
-                    ["step", "episode", "reward", "average_reward", "epsilon"]
-                )
+                writer.writerow([
+                    "step",
+                    "episode",
+                    "reward",
+                    "average_reward",
+                    "original_reward",
+                    "average_original_reward",
+                    "rally_hits",
+                    "epsilon"])
 
             for step in range(start_step + 1, total_steps + 1):
                 epsilon = scheduler.get_epsilon(step - 1)
@@ -466,6 +472,9 @@ def train(
                             episode_count,
                             episode_reward,
                             average_reward,
+                            episode_original_reward,
+                            average_original_reward,
+                            episode_rally_hits,
                             epsilon
                         ]
                     )
@@ -475,10 +484,11 @@ def train(
                     print(
                         f"Episode {episode_count} | "
                         f"Step {step} | "
-                        f"Reward {episode_reward:.1f} | "
-                        f"Avg100 {average_reward:.2f} | "
-                        f"Epsilon {epsilon:.4f}"
-                    )
+                        f"Original Reward {episode_original_reward:.1f} | "
+                        f"Shaped Reward {episode_reward:.2f} | "
+                        f"Avg100 Original {average_original_reward:.2f} | "
+                        f"Rally Hits {episode_rally_hits} | "
+                        f"Epsilon {epsilon:.4f}")
 
                     state = env.reset()
                     episode_reward = 0.0
