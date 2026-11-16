@@ -61,6 +61,9 @@ class PongEnvironment:
             ale_action
         )
 
+        info = dict(info)
+        info["original_reward"] = float(reward)
+
         frame = preprocess_frame(observation)
         next_state = self.frame_stack.step(frame)
 
