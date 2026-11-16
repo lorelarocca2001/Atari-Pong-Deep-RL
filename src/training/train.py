@@ -228,6 +228,7 @@ def train(
     gamma = training_config["gamma"]
     activation = config.get("model", {}).get("activation", "leaky_relu")
     double_dqn = config.get("model", {}).get("double_dqn", False)
+    rally_bonus = config.get("reward_shaping", {}).get("rally_bonus", 0.0)
 
     buffer_capacity = replay_config["capacity"]
     warmup_steps = replay_config["warmup_steps"]
@@ -254,7 +255,10 @@ def train(
         "cuda:0" if torch.cuda.is_available() else "cpu"
     )
 
-    env = PongEnvironment(num_frames=4)
+    env = PongEnvironment(
+    num_frames=4,
+    rally_bonus=rally_bonus
+)
 
     agent = DQNAgent(
         num_actions=env.num_actions,
@@ -360,6 +364,7 @@ def train(
         print("Seed:", seed)
         print("Device:", device)
         print("Activation:", activation)
+        print("Rally bonus:", rally_bonus)
         print("Algorithm:", "Double DQN" if double_dqn else "DQN")
         print("Epsilon schedule:", epsilon_schedule)
         print("Total steps:", total_steps)
