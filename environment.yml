@@ -1,22 +1,25 @@
 name: dl-project
+
 channels:
-  - pytorch
-  - nvidia
-  - defaults
+  - conda-forge
+
 dependencies:
   - python=3.10
   - pip
-  - pytorch
-  - torchvision
-  - torchaudio
-  - pytorch-cuda=11.8 # Modificare a seconda del target
-  # Add other conda packages here
+
   - pip:
+      - torch==2.11.0
+      - gymnasium==1.4.0
+      - ale-py==0.12.1
       - numpy
       - pandas
       - matplotlib
-      - scikit-learn
+      - opencv-python
+      - pillow
       - pyyaml
-      - tensorboard
+      - wandb
+      - imageio
+      - imageio-ffmpeg
       - tqdm
-      # Add other pip-only packages here
+      - pytest
+
